@@ -5,12 +5,14 @@ import {
   Param,
   ParseIntPipe,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuardJwt } from './../auth/guards/auth-jwt.guard';
 import { EventAttendeesService } from './../event-attendees/event-attendees.service';
 import { CreateAttendeeDto } from './dto/create-attendee.dto';
-import { Attendee } from './entities/attendee.entity';
+import { Attendee, AttendeesPaginated } from './entities/attendee.entity';
+import { PaginateOptions } from './../pagination/pagination.dto';
 
 @UseGuards(AuthGuardJwt)
 @Controller('events/:eventId/attendees')
@@ -20,8 +22,12 @@ export class EventAttendeesController {
   @Get()
   async findAll(
     @Param('eventId', ParseIntPipe) eventId: number,
-  ): Promise<Attendee[]> {
-    return await this.attendeesService.getAttendeesByEventId(eventId);
+    @Query() paginateOptions: PaginateOptions,
+  ): Promise<AttendeesPaginated> {
+    return await this.attendeesService.getAttendeesByEventId(
+      eventId,
+      paginateOptions,
+    );
   }
 
   @Get(':userId')

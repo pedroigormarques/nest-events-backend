@@ -11,8 +11,8 @@ import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { Event, EventsPaginated } from './entities/event.entity';
-import { AttendeeAnswerEnum } from './../event-attendees/entities/attendee.entity';
 import { paginate } from './../pagination/paginate.function';
+import { PickPropertiesByType } from './../utils/pick-properties-by-type.type';
 
 @Injectable()
 export class EventsService {
@@ -27,6 +27,10 @@ export class EventsService {
         ...createEventDto,
         when: new Date(createEventDto.when),
         organizer: user,
+        attendeeCount: 0,
+        attendeeAccepted: 0,
+        attendeeMaybe: 0,
+        attendeeRejected: 0,
       }),
     );
   }
@@ -35,7 +39,8 @@ export class EventsService {
     paginateOptions?: PaginateOptions,
   ): Promise<EventsPaginated> {
     return await paginate(
-      this.getEventsWithAttendeeCountQuery(),
+      this.getBaseQuery(),
+      EventsPaginated,
       paginateOptions,
     );
   }
@@ -45,9 +50,10 @@ export class EventsService {
     paginateOptions?: PaginateOptions,
   ): Promise<EventsPaginated> {
     return await paginate(
-      this.getEventsWithAttendeeCountQuery().where('e.organizerId = :userId', {
+      this.getBaseQuery().where('e.organizerId = :userId', {
         userId,
       }),
+      EventsPaginated,
       paginateOptions,
     );
   }
@@ -57,18 +63,16 @@ export class EventsService {
     paginateOptions?: PaginateOptions,
   ): Promise<EventsPaginated> {
     return await paginate(
-      this.getEventsWithAttendeeCountQuery()
+      this.getBaseQuery()
         .leftJoinAndSelect('e.attendees', 'a')
         .where('a.userId = :userId', { userId }),
+      EventsPaginated,
       paginateOptions,
     );
   }
 
   async findOne(id: number): Promise<Event> {
-    const event = await this.repository.findOne({
-      where: { id },
-      relations: ['organizer'],
-    });
+    const event = await this.repository.findOne({ where: { id } });
 
     if (!event) throw new NotFoundException();
 
@@ -105,37 +109,21 @@ export class EventsService {
     await this.repository.remove(event);
   }
 
-  private getEventsWithAttendeeCountQuery(): SelectQueryBuilder<Event> {
-    return this.repository
-      .createQueryBuilder('e')
-      .orderBy('e.id', 'DESC')
-      .loadRelationCountAndMap('e.attendeeCount', 'e.attendees')
-      .loadRelationCountAndMap(
-        'e.attendeeAccepted',
-        'e.attendees',
-        'attendee',
-        (qb) =>
-          qb.where('attendee.answer = :answer', {
-            answer: AttendeeAnswerEnum.Accepted,
-          }),
-      )
-      .loadRelationCountAndMap(
-        'e.attendeeMaybe',
-        'e.attendees',
-        'attendee',
-        (qb) =>
-          qb.where('attendee.answer = :answer', {
-            answer: AttendeeAnswerEnum.Maybe,
-          }),
-      )
-      .loadRelationCountAndMap(
-        'e.attendeeRejected',
-        'e.attendees',
-        'attendee',
-        (qb) =>
-          qb.where('attendee.answer = :answer', {
-            answer: AttendeeAnswerEnum.Rejected,
-          }),
-      );
+  private getBaseQuery(): SelectQueryBuilder<Event> {
+    return this.repository.createQueryBuilder('e').orderBy('e.id', 'DESC');
+  }
+
+  async loadEventWithRelations(
+    userId: number,
+    relations: Array<keyof PickPropertiesByType<Event, object>>,
+  ): Promise<Event> {
+    const relationsObject = {};
+    relations.forEach((v) => (relationsObject[v] = true));
+
+    return await this.repository.findOne({
+      where: { id: userId },
+      select: { id: true, ...relationsObject },
+      relations: relationsObject,
+    });
   }
 }

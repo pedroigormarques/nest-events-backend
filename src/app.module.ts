@@ -12,6 +12,8 @@ import { Event } from './events/entities/event.entity';
 import { EventsModule } from './events/events.module';
 import { User } from './user/entities/user.entity';
 import { UserModule } from './user/user.module';
+import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriverConfig, ApolloDriver } from '@nestjs/apollo';
 
 @Module({
   imports: [
@@ -28,6 +30,11 @@ import { UserModule } from './user/user.module';
       entities: [Event, User, Attendee],
       synchronize: true,
       dropSchema: Boolean(parseInt(process.env.DB_DROP_SCHEMA)),
+    }),
+    GraphQLModule.forRoot<ApolloDriverConfig>({
+      driver: ApolloDriver,
+      autoSchemaFile: true,
+      playground: true,
     }),
     AuthModule,
     UserModule,
